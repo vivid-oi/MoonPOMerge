@@ -1,0 +1,49 @@
+name: Verify MoonPOMerge
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  portable:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [wasm, wasm-gc, js]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: hustcer/setup-moonbit@v1.22
+        with:
+          version: 0.10.19+bee578715
+          core-version: 0.10.19+bee578715
+      - run: moon update
+      - run: moon fmt --check
+      - run: moon info
+      - run: git diff --exit-code -- '*.mbti'
+      - run: moon check --target ${{ matrix.target }} --deny-warn
+      - run: moon test --target ${{ matrix.target }} --deny-warn
+      - if: matrix.target == 'wasm'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gettext
+          moon run checks/demo.mbtx -- moon wasm msgfmt
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - uses: hustcer/setup-moonbit@v1.22
+        with:
+          version: 0.10.19+bee578715
+          core-version: 0.10.19+bee578715
+      - run: moon update
+      - run: moon check --target native --deny-warn
+      - run: moon test --target native --deny-warn
+      - run: moon run checks/demo.mbtx -- moon native

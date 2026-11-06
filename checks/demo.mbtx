@@ -1,0 +1,56 @@
+----
+import {
+  "moonbitlang/async@0.22.5",
+  "moonbitlang/async@0.22.5/fs",
+  "moonbitlang/async@0.22.5/shell",
+  "moonbitlang/core/env",
+  "YanFangNie/moongettext@0.1.1",
+}
+----
+async fn main {
+  let args = @env.args()
+  let moon = if args.length() > 1 { args[1] } else { "moon" }
+  let target = if args.length() > 2 { args[2] } else { "wasm" }
+  let base = "examples/django-admin-de.po"
+  let original = @fs.read_file(base).text()
+  let doc = @moongettext.parse_po(original)
+  let dir = @fs.tmpdir(prefix="moonpomerge-")
+  let ours = dir + "/ours.po"
+  let theirs = dir + "/theirs.po"
+  let review = dir + "/review.json"
+  let result = dir + "/merged.po"
+  defer {
+    for name in @fs.readdir(dir[:]) { @fs.remove((dir + "/" + name)[:]) }
+    @fs.rmdir(dir[:])
+  }
+  let left = doc.entries.copy()
+  let right = doc.entries.copy()
+  let entry = doc.entries[1]
+  left[1] = { ..entry, translations: [entry.translations[0] + " (branche A)"] }
+  right[1] = { ..entry, translations: [entry.translations[0] + " (branche B)"] }
+  @fs.write_file(ours[:], @moongettext.write_po(@moongettext.PoFile::new(left)))
+  @fs.write_file(theirs[:], @moongettext.write_po(@moongettext.PoFile::new(right)))
+  let prefix = ["run", "--target", target, "cmd/main", "--"]
+  let inputs = [base, ours, theirs]
+  let planned = @shell.Cmd(moon, prefix + ["plan"] + inputs).output()
+  if planned.exit_code() != 0 { fail(planned.stderr()) }
+  let report = planned.stdout()
+  if !report.contains("branche A") || !report.contains("branche B") { fail("missing branch evidence") }
+  @fs.write_file(review[:], report)
+  let rejected = @shell.Cmd(moon, prefix + ["apply"] + inputs + [review]).output()
+  if rejected.exit_code() == 0 || !rejected.stdout().is_empty() { fail("unresolved conflict produced output") }
+  let applied = @shell.Cmd(moon, prefix + ["apply"] + inputs + [review, "theirs"]).output()
+  if applied.exit_code() != 0 { fail(applied.stderr()) }
+  let output = applied.stdout()
+  if output.contains("branche A") || !output.contains("branche B") { fail("wrong resolution") }
+  let merged = @moongettext.parse_po(output)
+  if merged.entries.length() != doc.entries.length() { fail("unrelated entries were lost") }
+  for i in 0..<merged.entries.length() {
+    if merged.entries[i] != right[i] { fail("unexpected change outside the resolution") }
+  }
+  @fs.write_file(result[:], output)
+  if args.length() > 3 {
+    @shell.Cmd(args[3], ["--check", "-o", dir + "/merged.mo", result]).run()
+  }
+  println("Django catalog: conflict evidence, refused unresolved export and exact semantic resolution passed (" + target + ")")
+}

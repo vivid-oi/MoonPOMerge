@@ -1,0 +1,25 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "vivid-oi/moonpomerge"
+
+import {
+  "moonbitlang/core/json",
+}
+
+// Values
+pub fn plan_merge(String, String, String) -> MergePlan raise MergeError
+
+// Errors
+pub suberror MergeError {
+  Invalid(String)
+}
+
+// Types and methods
+pub struct MergePlan {
+  // private fields
+}
+pub fn MergePlan::apply(Self, Array[String]) -> String raise MergeError
+pub fn MergePlan::report(Self) -> @json.Json
+
+// Type aliases
+
+// Traits
