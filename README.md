@@ -25,6 +25,8 @@ translation. Provide every slot in plural order. The decision retains the ours
 entry's identity, comments and flags, and is unavailable for the catalog header.
 Apply checks that the reviewed conflict report still matches and emits a
 complete PO on stdout only after validation. Use a new output path for redirection.
+The report gives one-based block-start lines for each side. An absent entry
+has a null line. Lines refer to the actual input text, including comments.
 
 The portable library exposes `plan_merge`, `MergePlan::report` and
 `MergePlan::apply`. Entry identity uses decoded context and msgid, with active

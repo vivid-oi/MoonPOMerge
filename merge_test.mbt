@@ -69,6 +69,12 @@ test "delete versus edit preserves evidence and does not attach an old translati
   let theirs = catalog("Ouvrez", "Fermer")
   let plan = @moonpomerge.plan_merge(base, renamed, theirs)
   assert_true(plan.report().stringify().contains("Ouvrez"))
+  assert_true(
+    plan
+    .report()
+    .stringify()
+    .contains("\"lines\":{\"base\":4,\"ours\":null,\"theirs\":4}"),
+  )
   let output = plan.apply(["ours"])
   assert_true(output.contains("Open now"))
   assert_false(output.contains("Ouvrez"))

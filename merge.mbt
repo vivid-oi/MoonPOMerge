@@ -8,6 +8,7 @@ priv struct Slot {
   id : Int32
   context : String?
   message : String
+  lines : Array[Int32]
   base : @po.PoEntry?
   ours : @po.PoEntry?
   theirs : @po.PoEntry?
@@ -20,11 +21,15 @@ pub struct MergePlan {
 }
 
 ///|
-fn read_catalog(source : String, side : String) -> @po.PoFile raise MergeError {
+fn read_catalog(
+  source : String,
+  side : String,
+  lines~ : Array[Int32] = [],
+) -> @po.PoFile raise MergeError {
   if source.length() > 4_000_000 {
     raise Invalid(side + ": catalog exceeds input limit")
   }
-  check_blocks(source, side)
+  check_blocks(source, side, lines)
   let doc = @po.parse_po(source) catch {
     @po.PoSyntax(line~, column~, message~) =>
       raise Invalid("\{side}:\{line}:\{column}: \{message}")
@@ -37,6 +42,9 @@ fn read_catalog(source : String, side : String) -> @po.PoFile raise MergeError {
   guard doc.header() is Some(_) else {
     raise Invalid(side + ": missing metadata header")
   }
+  if doc.entries.length() != lines.length() {
+    raise Invalid(side + ": PO parser and entry boundaries disagree")
+  }
   guard doc.metadata().get("Content-Type") is Some(content) &&
     content
     .to_lower()
@@ -48,7 +56,11 @@ fn read_catalog(source : String, side : String) -> @po.PoFile raise MergeError {
 }
 
 ///|
-fn check_blocks(source : String, side : String) -> Unit raise MergeError {
+fn check_blocks(
+  source : String,
+  side : String,
+  lines : Array[Int32],
+) -> Unit raise MergeError {
   let fields : Map[String, Bool] = Map([])
   let mut occupied = false
   let mut obsolete : Bool? = None
@@ -84,6 +96,9 @@ fn check_blocks(source : String, side : String) -> Unit raise MergeError {
       obsolete = None
       fields.clear()
       continue
+    }
+    if !occupied {
+      lines.push(number + 1)
     }
     occupied = true
     let line = if line.has_prefix("#~ ") { line[3:].to_owned() } else { line }
@@ -133,14 +148,15 @@ fn check_blocks(source : String, side : String) -> Unit raise MergeError {
 fn index_catalog(
   doc : @po.PoFile,
   side : String,
-) -> Map[(String?, String, Bool), @po.PoEntry] raise MergeError {
+  lines : Array[Int32],
+) -> Map[(String?, String, Bool), (@po.PoEntry, Int32)] raise MergeError {
   let index = Map([])
-  for entry in doc.entries {
+  for i, entry in doc.entries {
     let key = (entry.context, entry.msgid, entry.obsolete)
     if index.contains(key) {
       raise Invalid(side + ": duplicate entry " + entry.msgid)
     }
-    index[key] = entry
+    index[key] = (entry, lines[i])
   }
   index
 }
@@ -152,18 +168,21 @@ pub fn plan_merge(
   ours : String,
   theirs : String,
 ) -> MergePlan raise MergeError {
-  let b = read_catalog(base, "base")
-  let o = read_catalog(ours, "ours")
-  let t = read_catalog(theirs, "theirs")
+  let bl = []
+  let ol = []
+  let tl = []
+  let b = read_catalog(base, "base", lines=bl)
+  let o = read_catalog(ours, "ours", lines=ol)
+  let t = read_catalog(theirs, "theirs", lines=tl)
   for field in ["Language", "Plural-Forms", "Content-Type"] {
     let value = b.metadata().get(field)
     if o.metadata().get(field) != value || t.metadata().get(field) != value {
       raise Invalid("incompatible catalog metadata: " + field)
     }
   }
-  let bi = index_catalog(b, "base")
-  let oi = index_catalog(o, "ours")
-  let ti = index_catalog(t, "theirs")
+  let bi = index_catalog(b, "base", bl)
+  let oi = index_catalog(o, "ours", ol)
+  let ti = index_catalog(t, "theirs", tl)
   let entries : Array[(@po.PoEntry?, Int32?)] = []
   let conflicts : Array[Slot] = []
   let seen : Map[(String?, String, Bool), Bool] = Map([])
@@ -173,9 +192,9 @@ pub fn plan_merge(
         continue
       }
       seen[key] = true
-      let bv = bi.get(key)
-      let ov = oi.get(key)
-      let tv = ti.get(key)
+      let bv = bi.get(key).map(pair => pair.0)
+      let ov = oi.get(key).map(pair => pair.0)
+      let tv = ti.get(key).map(pair => pair.0)
       if ov == tv || tv == bv {
         entries.push((ov, None))
       } else if ov == bv {
@@ -183,7 +202,18 @@ pub fn plan_merge(
       } else {
         let id = conflicts.length()
         let (context, message, _) = key
-        conflicts.push({ id, context, message, base: bv, ours: ov, theirs: tv, })
+        let lines = [bi, oi, ti].map(idx => {
+          idx.get(key).map(pair => pair.1).unwrap_or(0)
+        })
+        conflicts.push({
+          id,
+          context,
+          message,
+          lines,
+          base: bv,
+          ours: ov,
+          theirs: tv,
+        })
         entries.push((None, Some(id)))
       }
     }
@@ -215,8 +245,22 @@ pub fn MergePlan::report(self : MergePlan) -> Json {
         "base": entry_json(slot.base),
         "ours": entry_json(slot.ours),
         "theirs": entry_json(slot.theirs),
+        "lines": {
+          "base": location_json(slot.lines[0]),
+          "ours": location_json(slot.lines[1]),
+          "theirs": location_json(slot.lines[2]),
+        },
       }),
     ),
+  }
+}
+
+///|
+fn location_json(line : Int32) -> Json {
+  if line == 0 {
+    null
+  } else {
+    Json(line)
   }
 }
 
