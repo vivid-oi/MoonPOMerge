@@ -221,6 +221,30 @@ pub fn MergePlan::report(self : MergePlan) -> Json {
 }
 
 ///|
+fn custom_translation(
+  slot : Slot,
+  text : String,
+) -> @po.PoEntry raise MergeError {
+  guard slot.ours is Some(entry) && !entry.is_header() else {
+    raise Invalid("custom translation requires a non-header ours entry")
+  }
+  let value = @json.parse(text) catch {
+    _ => raise Invalid("custom translation must contain valid JSON")
+  }
+  guard value is Array(items) && items.length() == entry.translations.length() else {
+    raise Invalid("custom translation must supply every translation slot")
+  }
+  let translations : Array[String] = []
+  for item in items {
+    guard item is String(value) else {
+      raise Invalid("custom translation slots must be strings")
+    }
+    translations.push(value)
+  }
+  { ..entry, translations, }
+}
+
+///|
 /// Resolve every conflict in report order and return a complete validated PO.
 pub fn MergePlan::apply(
   self : MergePlan,
@@ -239,6 +263,8 @@ pub fn MergePlan::apply(
         "base" => slot.base
         "ours" => slot.ours
         "theirs" => slot.theirs
+        _ if choice.has_prefix("json:") =>
+          Some(custom_translation(slot, choice[5:].to_owned()))
         _ => raise Invalid("unknown decision for conflict " + id.to_string())
       },
     )

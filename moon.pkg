@@ -1,3 +1,4 @@
 import {
   "YanFangNie/moongettext" @po,
+  "moonbitlang/core/json",
 }

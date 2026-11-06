@@ -20,6 +20,9 @@ moon run --target wasm cmd/main -- apply base.po ours.po theirs.po review.json t
 ```
 
 Supply one choice (`base`, `ours` or `theirs`) per reported conflict in ID order.
+For an entry present in ours, `'json:["New translation"]'` supplies a custom
+translation. Provide every slot in plural order. The decision retains the ours
+entry's identity, comments and flags, and is unavailable for the catalog header.
 Apply checks that the reviewed conflict report still matches and emits a
 complete PO on stdout only after validation. Use a new output path for redirection.
 
@@ -34,7 +37,7 @@ charset/language/plural headers, blank-line separated entries and the standard
 comment classes. Limits are 4 MB per CLI input and 100 plural slots per entry.
 Header edits participate in the merge and the resulting catalog is validated.
 The caller supplies the common ancestor and same-domain inputs. Git driver
-installation, custom replacement entries, heuristic renames, POT synchronization
+installation, heuristic renames, POT synchronization
 and non-UTF-8 conversion are outside this release.
 
 Apache-2.0. The PO codec and validation use

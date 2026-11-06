@@ -34,6 +34,10 @@ test "conflict requires explicit choice and the plan remains reusable" {
   assert_true((Some(plan.apply(["arbitrary"])) catch { _ => None }) is None)
   assert_true(plan.apply(["theirs"]).contains("Ouvrez"))
   assert_true(plan.apply(["ours"]).contains("Ouverture"))
+  assert_true(plan.apply(["json:[\"Accéder\"]"]).contains("Accéder"))
+  for choice in ["json:[]", "json:[1]", "json:[\"a\",\"b\"]", "json:["] {
+    assert_true((Some(plan.apply([choice])) catch { _ => None }) is None)
+  }
 }
 
 ///|
