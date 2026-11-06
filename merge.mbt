@@ -18,6 +18,7 @@ priv struct Slot {
 pub struct MergePlan {
   priv entries : Array[(@po.PoEntry?, Int32?)]
   priv conflicts : Array[Slot]
+  priv fingerprints : Array[String]
 }
 
 ///|
@@ -218,7 +219,19 @@ pub fn plan_merge(
       }
     }
   }
-  { entries, conflicts, }
+  { entries, conflicts, fingerprints: [base, ours, theirs].map(fingerprint), }
+}
+
+///|
+fn fingerprint(source : String) -> String {
+  let digest = @crypto.sha256_from_iter(@utf8.encode(source).iter())
+  let hex = "0123456789abcdef".to_array()
+  let result = StringBuilder()
+  for byte in digest {
+    result.write_char(hex[byte.to_int() >> 4])
+    result.write_char(hex[byte.to_int() & 15])
+  }
+  result.to_string()
 }
 
 ///|
@@ -233,7 +246,12 @@ fn entry_json(entry : @po.PoEntry?) -> Json {
 /// Return detached conflict evidence. Each non-null side is a PO entry.
 pub fn MergePlan::report(self : MergePlan) -> Json {
   {
-    "version": 1,
+    "version": 2,
+    "input_sha256": {
+      "base": Json(self.fingerprints[0]),
+      "ours": Json(self.fingerprints[1]),
+      "theirs": Json(self.fingerprints[2]),
+    },
     "conflicts": Json::array(
       self.conflicts.map(slot => {
         "id": Json(slot.id),

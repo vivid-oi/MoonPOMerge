@@ -79,3 +79,21 @@ test "delete versus edit preserves evidence and does not attach an old translati
   assert_true(output.contains("Open now"))
   assert_false(output.contains("Ouvrez"))
 }
+
+///|
+test "review changes when an unrelated accepted edit changes" {
+  let base = catalog("Ouvrir", "Fermer")
+  let theirs = catalog("Ouvrez", "Fermer")
+  let a = @moonpomerge.plan_merge(base, catalog("Ouverture", "Fermer"), theirs)
+  let b = @moonpomerge.plan_merge(
+    base,
+    catalog("Ouverture", "Fermeture"),
+    theirs,
+  )
+  guard a.report() is { "conflicts": old_conflicts, .. } &&
+    b.report() is { "conflicts": new_conflicts, .. } else {
+    fail("missing conflicts")
+  }
+  assert_eq(old_conflicts, new_conflicts)
+  assert_true(a.report() != b.report())
+}

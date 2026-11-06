@@ -11,4 +11,5 @@ readme = "README.md"
 import {
   "YanFangNie/moongettext@0.1.1",
   "moonbitlang/async@0.22.5",
+  "moonbitlang/x@0.4.45",
 }

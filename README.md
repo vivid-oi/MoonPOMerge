@@ -23,8 +23,10 @@ Supply one choice (`base`, `ours` or `theirs`) per reported conflict in ID order
 For an entry present in ours, `'json:["New translation"]'` supplies a custom
 translation. Provide every slot in plural order. The decision retains the ours
 entry's identity, comments and flags, and is unavailable for the catalog header.
-Apply checks that the reviewed conflict report still matches and emits a
+Apply checks that the reviewed report still matches and emits a
 complete PO on stdout only after validation. Use a new output path for redirection.
+Version 2 binds decisions to SHA-256 hashes of all three decoded input texts,
+including changes outside conflicts. Regenerate earlier review files.
 The report gives one-based block-start lines for each side. An absent entry
 has a null line. Lines refer to the actual input text, including comments.
 
@@ -45,6 +47,7 @@ and non-UTF-8 conversion are outside this release.
 Apache-2.0. The PO codec and validation use
 [moongettext 0.1.1](https://github.com/YanFangNie/moongettext), also Apache-2.0.
 MoonBit async supplies filesystem and process adapters under Apache-2.0.
+SHA-256 uses Apache-2.0 `moonbitlang/x/crypto`.
 The original [Django German admin catalog](https://github.com/django/django/blob/9e7cc2b628fe8fd3895986af9b7fc9525034c1b0/django/contrib/admin/locale/de/LC_MESSAGES/django.po)
 is included under the [Django license](examples/DJANGO-LICENSE).
 Demo changes and merge tests were authored for this project.

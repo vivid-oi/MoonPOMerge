@@ -35,14 +35,18 @@ async fn execute() -> Unit {
       if args.length() != 5 {
         fail("plan takes exactly three inputs")
       }
-      @stdio.stdout.write(plan.report().stringify() + "\n")
+      let report = plan.report().stringify() + "\n"
+      if @utf8.encode(report).length() > 4_000_000 {
+        fail("review exceeds the 4 MB CLI input limit")
+      }
+      @stdio.stdout.write(report)
     }
     "apply" => {
       if args.length() < 6 {
         fail("apply requires the reviewed plan JSON file")
       }
       if read_po(args[5]).trim().to_owned() != plan.report().stringify() {
-        fail("reviewed conflict report differs from current input")
+        fail("reviewed report differs from current input. Run plan again.")
       }
       @stdio.stdout.write(plan.apply(args[6:].to_owned()))
     }
