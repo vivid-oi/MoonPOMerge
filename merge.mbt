@@ -274,6 +274,12 @@ pub fn MergePlan::report(self : MergePlan) -> Json {
 }
 
 ///|
+/// Tell whether the plan needs decisions before it can produce a PO.
+pub fn MergePlan::has_conflicts(self : MergePlan) -> Bool {
+  !self.conflicts.is_empty()
+}
+
+///|
 fn location_json(line : Int32) -> Json {
   if line == 0 {
     null

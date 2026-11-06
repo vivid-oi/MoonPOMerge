@@ -32,6 +32,19 @@ async fn main {
   @fs.write_file(theirs[:], @moongettext.write_po(@moongettext.PoFile::new(right)))
   let prefix = ["run", "--target", target, "cmd/main", "--"]
   let inputs = [base, ours, theirs]
+  let saved_ours = @fs.read_file(ours[:]).text()
+  let conflict = @shell.Cmd(moon, prefix + ["git-driver"] + inputs).output()
+  if conflict.exit_code() != 1 || !conflict.stderr().contains("branche B") ||
+    @fs.read_file(ours[:]).text() != saved_ours {
+    fail("Git driver failed to retain the unresolved ours file")
+  }
+  let driver_output = dir + "/driver.po"
+  @fs.write_file(driver_output[:], original)
+  let clean = @shell.Cmd(moon, prefix + ["git-driver", base, driver_output, theirs]).output()
+  if clean.exit_code() != 0 { fail(clean.stderr()) }
+  if @moongettext.parse_po(@fs.read_file(driver_output[:]).text()) != @moongettext.PoFile::new(right) {
+    fail("Git driver did not install the validated merge")
+  }
   let planned = @shell.Cmd(moon, prefix + ["plan"] + inputs).output()
   if planned.exit_code() != 0 { fail(planned.stderr()) }
   let report = planned.stdout()

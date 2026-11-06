@@ -25,12 +25,26 @@ async fn execute() -> Unit {
       "usage: plan BASE OURS THEIRS | apply BASE OURS THEIRS REVIEW.json [base|ours|theirs ...]",
     )
   }
-  let plan = @merge.plan_merge(
-    read_po(args[2]),
-    read_po(args[3]),
-    read_po(args[4]),
-  )
+  let base = read_po(args[2])
+  let ours = read_po(args[3])
+  let theirs = read_po(args[4])
+  let plan = @merge.plan_merge(base, ours, theirs)
   match args[1] {
+    "git-driver" => {
+      if args.length() != 5 {
+        fail("git-driver requires BASE OURS THEIRS")
+      }
+      if plan.has_conflicts() {
+        @stdio.stderr.write(plan.report().stringify() + "\n")
+        exit_process(1)
+      } else {
+        let output = plan.apply([])
+        if read_po(args[3]) != ours {
+          fail("ours changed during merge")
+        }
+        replace_ours(args[3], @utf8.encode(output))
+      }
+    }
     "plan" => {
       if args.length() != 5 {
         fail("plan takes exactly three inputs")

@@ -30,6 +30,23 @@ including changes outside conflicts. Regenerate earlier review files.
 The report gives one-based block-start lines for each side. An absent entry
 has a null line. Lines refer to the actual input text, including comments.
 
+## Git merge driver
+
+Build the native CLI with `moon build --target native --release`. Configure
+the driver with the absolute path to the resulting CLI binary:
+
+```ini
+[merge "moonpomerge"]
+    name = Semantic gettext catalog merge
+    driver = "/absolute/path/to/moonpomerge" git-driver %O %A %B
+```
+
+Set `*.po merge=moonpomerge` in the consuming repository's `.gitattributes`.
+The driver replaces Git's ours file only after a clean merge and validation.
+It exits 1 and prints the conflict report to stderr for a divergent entry,
+leaving the ours file intact. Read the three unmerged Git index stages and
+use `plan` / `apply` to resolve. Invalid input and I/O failures exit 2.
+
 The portable library exposes `plan_merge`, `MergePlan::report` and
 `MergePlan::apply`. Entry identity uses decoded context and msgid, with active
 and obsolete entries separated. Translation, plural shape, flags and comments
@@ -40,13 +57,15 @@ Version 0.1 supports one UTF-8 language/domain per merge, explicit matching
 charset/language/plural headers, blank-line separated entries and the standard
 comment classes. Limits are 4 MB per CLI input and 100 plural slots per entry.
 Header edits participate in the merge and the resulting catalog is validated.
-The caller supplies the common ancestor and same-domain inputs. Git driver
-installation, heuristic renames, POT synchronization
+The caller supplies the common ancestor and same-domain inputs. Heuristic renames, POT synchronization
 and non-UTF-8 conversion are outside this release.
 
 Apache-2.0. The PO codec and validation use
 [moongettext 0.1.1](https://github.com/YanFangNie/moongettext), also Apache-2.0.
 MoonBit async supplies filesystem and process adapters under Apache-2.0.
+The driver's temporary-file replacement follows the Apache-2.0 publication
+pattern in [FontPin](https://github.com/vivid-oi/FontPin/blob/fcab696f80bd5a259cce7d19e01e50b79616ef04/src/command/files.mbt),
+which credits MBTRelMask.
 SHA-256 uses Apache-2.0 `moonbitlang/x/crypto`.
 The original [Django German admin catalog](https://github.com/django/django/blob/9e7cc2b628fe8fd3895986af9b7fc9525034c1b0/django/contrib/admin/locale/de/LC_MESSAGES/django.po)
 is included under the [Django license](examples/DJANGO-LICENSE).
