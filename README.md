@@ -67,6 +67,8 @@ Equality and round trips are semantic. Output normalizes PO formatting.
 Version 0.1 supports one UTF-8 language/domain per merge, explicit matching
 charset/language/plural headers, blank-line separated entries and the standard
 comment classes. Limits are 4 MB per CLI input and 100 plural slots per entry.
+Each physical directive or continuation line must carry a single quoted string.
+An unescaped interior quote or text after a closing quote is rejected.
 Header edits participate in the merge and the resulting catalog is validated.
 The caller supplies the common ancestor and same-domain inputs. Heuristic renames, POT synchronization
 and non-UTF-8 conversion are outside this release.

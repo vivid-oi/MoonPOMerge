@@ -128,11 +128,14 @@ fn check_blocks(
           (number + 1).to_string(),
         )
       }
-    } else if !line.has_prefix("\"") {
+    } else if line.has_prefix("\"") {
+      check_literal(line, side, number + 1)
+    } else {
       guard line.find(" ") is Some(end) else {
         raise Invalid(side + ": expected directive and quoted value")
       }
       let field = line[:end].to_owned()
+      check_literal(line[end:].trim().to_owned(), side, number + 1)
       if field.has_prefix("msgstr[") && field.length() > 10 {
         raise Invalid(side + ": plural slot exceeds the supported index range")
       }
@@ -153,6 +156,36 @@ fn check_blocks(
       fields[field] = true
     }
   }
+}
+
+///|
+fn check_literal(
+  value : String,
+  side : String,
+  line : Int32,
+) -> Unit raise MergeError {
+  if value.has_prefix("\"") {
+    let mut escaped = false
+    for i in 1..<value.length() {
+      let unit = value[i]
+      if unit.to_int() == 0 {
+        break
+      }
+      if escaped {
+        escaped = false
+      } else if unit == '\\' {
+        escaped = true
+      } else if unit == '"' {
+        if i == value.length() - 1 {
+          return
+        }
+        break
+      }
+    }
+  }
+  raise Invalid(
+    "\{side}:\{line}: expected exactly one quoted PO string per line",
+  )
 }
 
 ///|

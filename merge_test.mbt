@@ -110,3 +110,15 @@ test "review changes when an unrelated accepted edit changes" {
   assert_eq(old_conflicts, new_conflicts)
   assert_true(a.report() != b.report())
 }
+
+///|
+test "strict literals reject adjacent strings and retain escaped quotes" {
+  let valid = catalog("Il dit \\\"oui\\\"", "Fermer")
+  let bad = catalog("Ouvrir\" \"encore", "Fermer")
+  assert_true(
+    (Some(@moonpomerge.plan_merge(valid, bad, valid)) catch { _ => None })
+    is None,
+  )
+  let output = @moonpomerge.plan_merge(valid, valid, valid).apply([])
+  assert_true(output.contains("Il dit \\\"oui\\\""))
+}
