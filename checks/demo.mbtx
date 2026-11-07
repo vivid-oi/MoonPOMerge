@@ -48,6 +48,18 @@ async fn main {
   let planned = @shell.Cmd(moon, prefix + ["plan"] + inputs).output()
   if planned.exit_code() != 0 { fail(planned.stderr()) }
   let report = planned.stdout()
+  let blocked = @shell.Cmd(moon, prefix + ["check"] + inputs).output()
+  if blocked.exit_code() != 1 || blocked.stdout() != report {
+    fail("check did not report the blocking conflict")
+  }
+  let clear = @shell.Cmd(moon, prefix + ["check", base, base, theirs]).output()
+  if clear.exit_code() != 0 || !clear.stdout().contains("\"conflicts\":[]") {
+    fail("check rejected a clean merge")
+  }
+  let invalid = @shell.Cmd(moon, prefix + ["check", base, base, review]).output()
+  if invalid.exit_code() != 2 || !invalid.stdout().is_empty() {
+    fail("check accepted a missing input")
+  }
   if !report.contains("branche A") || !report.contains("branche B") { fail("missing branch evidence") }
   @fs.write_file(review[:], report)
   let rejected = @shell.Cmd(moon, prefix + ["apply"] + inputs + [review]).output()

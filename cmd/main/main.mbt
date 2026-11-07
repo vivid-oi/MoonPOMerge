@@ -22,7 +22,7 @@ async fn execute() -> Unit {
   let args = @env.args()
   if args.length() < 5 {
     fail(
-      "usage: plan BASE OURS THEIRS | apply BASE OURS THEIRS REVIEW.json [base|ours|theirs ...]",
+      "usage: plan|check|git-driver BASE OURS THEIRS | apply BASE OURS THEIRS REVIEW.json [choices ...] | apply-file BASE OURS THEIRS REVIEW.json DECISIONS.json",
     )
   }
   let base = read_po(args[2])
@@ -45,15 +45,21 @@ async fn execute() -> Unit {
         replace_ours(args[3], @utf8.encode(output))
       }
     }
-    "plan" => {
+    "plan" | "check" => {
       if args.length() != 5 {
-        fail("plan takes exactly three inputs")
+        fail("plan and check take exactly three inputs")
       }
       let report = plan.report().stringify() + "\n"
       if @utf8.encode(report).length() > 4_000_000 {
         fail("review exceeds the 4 MB CLI input limit")
       }
+      if args[1] == "check" && !plan.has_conflicts() {
+        ignore(plan.apply([]))
+      }
       @stdio.stdout.write(report)
+      if args[1] == "check" && plan.has_conflicts() {
+        exit_process(1)
+      }
     }
     "apply" | "apply-file" => {
       if args.length() < 6 {

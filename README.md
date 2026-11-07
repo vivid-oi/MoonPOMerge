@@ -33,6 +33,10 @@ including changes outside conflicts. Regenerate earlier review files.
 The report gives one-based block-start lines for each side. An absent entry
 has a null line. Lines refer to the actual input text, including comments.
 
+For CI, run `check BASE OURS THEIRS`. It prints the review JSON and exits 0 for
+a validated clean merge, 1 for conflicts, or 2 for invalid input or I/O errors.
+The command does not write the merge result.
+
 ## Git merge driver
 
 Build the native CLI with `moon build --target native --release`. Configure
