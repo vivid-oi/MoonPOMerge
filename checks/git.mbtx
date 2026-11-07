@@ -1,0 +1,123 @@
+----
+import {
+  "moonbitlang/async@0.22.5",
+  "moonbitlang/async@0.22.5/fs",
+  "moonbitlang/async@0.22.5/shell",
+  "moonbitlang/core/env",
+  "YanFangNie/moongettext@0.1.1" @po,
+}
+----
+
+// Git invokes its driver through a shell, even though setup commands use argv.
+fn quote_path(path : String) -> String {
+  let out = StringBuilder()
+  out.write_char('\'')
+  for ch in path.to_array() {
+    match ch {
+      '\\' => out.write_char('/')
+      '\'' => out.write_string("'\\''")
+      _ => out.write_char(ch)
+    }
+  }
+  out.write_char('\'')
+  out.to_string()
+}
+
+async fn git(dir : String, args : Array[String]) -> String {
+  let output = @shell.Cmd("git", ["-C", dir] + args).output()
+  if output.exit_code() != 0 { fail(output.stderr()) }
+  output.stdout()
+}
+
+async fn main {
+  let args = @env.args()
+  let moon = if args.length() > 1 { args[1] } else { "moon" }
+  let target = if args.length() > 2 { args[2] } else { "wasm" }
+  let root = @fs.realpath(".")
+  let dir = @fs.tmpdir(prefix="moonpomerge git ")
+  // Only this freshly allocated directory is removed, including its fixture Git data.
+  defer {
+    // Git object files are read-only on Windows.
+    if @env.get_env_var("OS") == Some("Windows_NT") {
+      @shell.Cmd("attrib.exe", ["-R", dir + "\\.git\\objects\\*", "/S", "/D"]).run()
+    }
+    @fs.rmdir(dir[:], recursive=true)
+  }
+  ignore(git(dir, ["init", "-b", "main"]))
+  ignore(git(dir, ["config", "user.name", "vivid-oi"]))
+  ignore(git(dir, ["config", "user.email", "272804261+vivid-oi@users.noreply.github.com"]))
+  ignore(git(dir, ["config", "commit.gpgsign", "false"]))
+  ignore(git(dir, ["config", "core.autocrlf", "false"]))
+  let hooks = dir + "/empty-hooks"
+  @fs.mkdir(hooks[:])
+  ignore(git(dir, ["config", "core.hooksPath", hooks]))
+  let driver = quote_path(moon) + " -C " + quote_path(root) +
+    " run --target " + quote_path(target) + " cmd/main -- git-driver " +
+    quote_path(dir + "/%O") + " " + quote_path(dir + "/%A") + " " + quote_path(dir + "/%B")
+  ignore(git(dir, ["config", "merge.moonpomerge.driver", driver]))
+  @fs.write_file((dir + "/.gitattributes")[:], "*.po merge=moonpomerge\n")
+  let path = dir + "/admin catalog.po"
+  let original = @po.parse_po(@fs.read_file("examples/django-admin-de.po").text())
+  @fs.write_file(path[:], @po.write_po(original))
+  ignore(git(dir, ["add", "-f", ".gitattributes", "admin catalog.po"]))
+  ignore(git(dir, ["commit", "-m", "Base catalog fixture"]))
+  ignore(git(dir, ["branch", "clean"]))
+  ignore(git(dir, ["branch", "conflicting"]))
+  let ours = original.entries.copy()
+  ours[1] = { ..ours[1], translations: [ours[1].translations[0] + " (ours)"] }
+  @fs.write_file(path[:], @po.write_po(@po.PoFile::new(ours)))
+  ignore(git(dir, ["commit", "-am", "First translator fixture"]))
+  ignore(git(dir, ["checkout", "clean"]))
+  let theirs = original.entries.copy()
+  theirs[2] = { ..theirs[2], translations: [theirs[2].translations[0] + " (theirs)"] }
+  @fs.write_file(path[:], @po.write_po(@po.PoFile::new(theirs)))
+  ignore(git(dir, ["commit", "-am", "Disjoint translator fixture"]))
+  ignore(git(dir, ["checkout", "main"]))
+  ignore(git(dir, ["merge", "--no-edit", "clean"]))
+  let expected = ours.copy()
+  expected[2] = theirs[2]
+  if @po.parse_po(@fs.read_file(path[:]).text()) != @po.PoFile::new(expected) {
+    fail("actual Git merge lost a disjoint edit")
+  }
+  let saved = @fs.read_file(path[:]).text()
+  ignore(git(dir, ["checkout", "conflicting"]))
+  let conflicting = original.entries.copy()
+  conflicting[1] = { ..conflicting[1], translations: [conflicting[1].translations[0] + " (conflict)"] }
+  @fs.write_file(path[:], @po.write_po(@po.PoFile::new(conflicting)))
+  ignore(git(dir, ["commit", "-am", "Divergent translator fixture"]))
+  ignore(git(dir, ["checkout", "main"]))
+  let blocked = @shell.Cmd("git", ["-C", dir, "merge", "--no-edit", "conflicting"]).output()
+  if blocked.exit_code() != 1 || !blocked.stderr().contains("(conflict)") ||
+    @fs.read_file(path[:]).text() != saved {
+    fail("actual Git conflict did not preserve ours and report evidence")
+  }
+  let stages = git(dir, ["ls-files", "--unmerged"])
+  if stages.trim().is_empty() { fail("Git did not retain the conflict index stages") }
+  let inputs = []
+  for stage in [1, 2, 3] {
+    let input = dir + "/stage" + stage.to_string() + ".po"
+    @fs.write_file(input[:], git(dir, ["show", ":" + stage.to_string() + ":admin catalog.po"]))
+    inputs.push(input)
+  }
+  let prefix = ["-C", root, "run", "--target", target, "cmd/main", "--"]
+  let planned = @shell.Cmd(moon, prefix + ["plan"] + inputs).output()
+  if planned.exit_code() != 0 { fail(planned.stderr()) }
+  let review = dir + "/review.json"
+  let decisions = dir + "/decisions.json"
+  let result = dir + "/resolved.po"
+  @fs.write_file(review[:], planned.stdout())
+  @fs.write_file(decisions[:], "[\"theirs\"]")
+  @shell.Cmd(moon, prefix + ["apply-to"] + inputs + [review, decisions, result]).run()
+  let resolved = @fs.read_file(result[:]).text()
+  expected[1] = conflicting[1]
+  if @po.parse_po(resolved) != @po.PoFile::new(expected) {
+    fail("reviewed Git index resolution lost an unrelated edit")
+  }
+  @fs.write_file(path[:], resolved)
+  ignore(git(dir, ["add", "admin catalog.po"]))
+  ignore(git(dir, ["commit", "-m", "Reviewed resolution fixture"]))
+  if !git(dir, ["status", "--porcelain", "--untracked-files=no"]).trim().is_empty() {
+    fail("resolved Git fixture is dirty")
+  }
+  println("Actual Git merge, conflict stages and reviewed resolution passed (" + target + ")")
+}

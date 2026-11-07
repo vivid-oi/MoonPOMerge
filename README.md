@@ -67,6 +67,16 @@ It exits 1 and prints the conflict report to stderr for a divergent entry,
 leaving the ours file intact. Read the three unmerged Git index stages and
 use `plan` / `apply` to resolve. Invalid input and I/O failures exit 2.
 
+Run `moon run checks/git.mbtx -- moon wasm` to exercise actual Git integration.
+The script creates a disposable repository using the Django catalog, configures
+the driver, merges disjoint branch edits, verifies a divergent merge leaves
+ours intact and keeps all three index stages, then exports those stages for
+review and applies the decision with `apply-to`. It verifies every resulting
+entry and completes the merge commit. Temporary paths and the PO filename
+include spaces. All fixture commits remain in that temporary repository.
+Pass `native` instead of `wasm` to exercise the native CLI. CI runs this workflow
+with the native CLI on Linux, macOS and Windows, plus Wasm on Linux.
+
 The portable library exposes `plan_merge`, `MergePlan::report`,
 `MergePlan::apply_decisions` and the string-based `MergePlan::apply`.
 Typed callers use `Base`, `Ours`, `Theirs` or `Translations(Array[String])`
