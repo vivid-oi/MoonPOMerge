@@ -23,6 +23,9 @@ Supply one choice (`base`, `ours` or `theirs`) per reported conflict in ID order
 For an entry present in ours, `'json:["New translation"]'` supplies a custom
 translation. Provide every slot in plural order. The decision retains the ours
 entry's identity, comments and flags, and is unavailable for the catalog header.
+For reviews with many decisions, use `apply-file BASE OURS THEIRS REVIEW.json DECISIONS.json`.
+The decisions file is a JSON array in conflict ID order, for example
+`["theirs", ["Revised translation"]]`. The inner array holds all translation slots.
 Apply checks that the reviewed report still matches and emits a
 complete PO on stdout only after validation. Use a new output path for redirection.
 Version 2 binds decisions to SHA-256 hashes of all three decoded input texts,

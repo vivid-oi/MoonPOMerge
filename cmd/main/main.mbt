@@ -55,17 +55,46 @@ async fn execute() -> Unit {
       }
       @stdio.stdout.write(report)
     }
-    "apply" => {
+    "apply" | "apply-file" => {
       if args.length() < 6 {
         fail("apply requires the reviewed plan JSON file")
       }
       if read_po(args[5]).trim().to_owned() != plan.report().stringify() {
         fail("reviewed report differs from current input. Run plan again.")
       }
-      @stdio.stdout.write(plan.apply(args[6:].to_owned()))
+      let choices = if args[1] == "apply-file" {
+        if args.length() != 7 {
+          fail("apply-file requires REVIEW.json and DECISIONS.json")
+        }
+        read_decisions(args[6])
+      } else {
+        args[6:].to_owned()
+      }
+      @stdio.stdout.write(plan.apply(choices))
     }
     _ => fail("unknown command: " + args[1])
   }
+}
+
+///|
+async fn read_decisions(path : String) -> Array[String] {
+  let text = read_po(path)
+  let value = @json.parse(text) catch {
+    _ => fail("decisions file is not valid JSON")
+  }
+  guard value is Array(items) else {
+    fail("decisions file must contain an array")
+  }
+  let choices = []
+  for item in items {
+    match item {
+      String(choice) => choices.push(choice)
+      Array(_) => choices.push("json:" + item.stringify())
+      _ =>
+        fail("each decision must be a branch name or an array of translations")
+    }
+  }
+  choices
 }
 
 ///|
