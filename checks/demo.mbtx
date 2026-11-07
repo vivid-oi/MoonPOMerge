@@ -73,16 +73,41 @@ async fn main {
   if file_applied.exit_code() != 0 || file_applied.stdout() != output {
     fail("file decision did not match positional resolution")
   }
+  let published = @shell.Cmd(moon, prefix + ["apply-to"] + inputs + [review, decisions, result]).output()
+  if published.exit_code() != 0 || !published.stdout().is_empty() ||
+    @fs.read_file(result[:]).text() != output {
+    fail("reviewed file publication failed")
+  }
+  let duplicate = @shell.Cmd(moon, prefix + ["apply-to"] + inputs + [review, decisions, result]).output()
+  if duplicate.exit_code() != 2 || @fs.read_file(result[:]).text() != output {
+    fail("publication overwrote an existing destination")
+  }
+  let same_input = @shell.Cmd(moon, prefix + ["apply-to"] + inputs + [review, decisions, ours]).output()
+  if same_input.exit_code() != 2 || @fs.read_file(ours[:]).text() != saved_ours {
+    fail("publication overwrote an input catalog")
+  }
+  @fs.write_file(review[:], "{}")
+  let stale = @shell.Cmd(moon, prefix + ["apply-to"] + inputs + [review, decisions, dir + "/stale.po"]).output()
+  if stale.exit_code() != 2 || !stale.stderr().contains("reviewed report differs") {
+    fail("stale review was accepted")
+  }
+  @fs.write_file(review[:], report)
   @fs.write_file(decisions[:], "[null]")
   let bad_file = @shell.Cmd(moon, prefix + ["apply-file"] + inputs + [review, decisions]).output()
   if bad_file.exit_code() != 2 || !bad_file.stdout().is_empty() { fail("invalid decision was accepted") }
+  let bad_publish = @shell.Cmd(moon, prefix + ["apply-to"] + inputs + [review, decisions, result]).output()
+  if bad_publish.exit_code() != 2 || @fs.read_file(result[:]).text() != output {
+    fail("bad decisions damaged the published result")
+  }
+  for name in @fs.readdir(dir[:]) {
+    if name.has_suffix(".pending") || name == "stale.po" { fail("failed publication left a file behind") }
+  }
   if output.contains("branche A") || !output.contains("branche B") { fail("wrong resolution") }
   let merged = @moongettext.parse_po(output)
   if merged.entries.length() != doc.entries.length() { fail("unrelated entries were lost") }
   for i in 0..<merged.entries.length() {
     if merged.entries[i] != right[i] { fail("unexpected change outside the resolution") }
   }
-  @fs.write_file(result[:], output)
   if args.length() > 3 {
     @shell.Cmd(args[3], ["--check", "-o", dir + "/merged.mo", result]).run()
   }

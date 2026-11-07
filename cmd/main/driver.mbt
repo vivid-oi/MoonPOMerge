@@ -1,7 +1,7 @@
 ///|
 // SPDX-License-Identifier: Apache-2.0
 // Temporary-file publication follows the FontPin / MBTRelMask pattern.
-async fn replace_ours(path : String, bytes : Bytes) -> Unit {
+async fn publish(path : String, bytes : Bytes, replace~ : Bool) -> Unit {
   guard @env.rand(16) is Some(random) else {
     fail("cannot allocate temporary name")
   }
@@ -25,7 +25,7 @@ async fn replace_ours(path : String, bytes : Bytes) -> Unit {
       file.write(bytes)
       file.sync()
     }
-    @fs.rename(temp[:], path[:], replace=true)
+    @fs.rename(temp[:], path[:], replace~)
     installed = true
   })
 }

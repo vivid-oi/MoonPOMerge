@@ -28,6 +28,15 @@ The decisions file is a JSON array in conflict ID order, for example
 `["theirs", ["Revised translation"]]`. The inner array holds all translation slots.
 Apply checks that the reviewed report still matches and emits a
 complete PO on stdout only after validation. Use a new output path for redirection.
+For file delivery, run `apply-to BASE OURS THEIRS REVIEW.json DECISIONS.json OUTPUT.po`.
+It validates the review and all choices before writing a sibling temporary file,
+syncs and closes it, then publishes it with replacement disabled. An existing
+destination, including any input path, is refused. Success produces no stdout.
+Failed publication cleans up its temporary file. Filesystem errors exit 2.
+The Django demo checks successful publication, existing destinations, stale
+reviews and invalid decisions. This provides process-level publication safety.
+Directory crash durability and hostile concurrent filesystem changes are outside
+the current contract.
 Version 2 binds decisions to SHA-256 hashes of all three decoded input texts,
 including changes outside conflicts. Regenerate earlier review files.
 The report gives one-based block-start lines for each side. An absent entry

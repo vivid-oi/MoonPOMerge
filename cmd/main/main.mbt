@@ -22,7 +22,7 @@ async fn execute() -> Unit {
   let args = @env.args()
   if args.length() < 5 {
     fail(
-      "usage: plan|check|git-driver BASE OURS THEIRS | apply BASE OURS THEIRS REVIEW.json [choices ...] | apply-file BASE OURS THEIRS REVIEW.json DECISIONS.json",
+      "usage: plan|check|git-driver BASE OURS THEIRS | apply BASE OURS THEIRS REVIEW.json [choices ...] | apply-file BASE OURS THEIRS REVIEW.json DECISIONS.json | apply-to BASE OURS THEIRS REVIEW.json DECISIONS.json OUTPUT.po",
     )
   }
   let base = read_po(args[2])
@@ -42,7 +42,7 @@ async fn execute() -> Unit {
         if read_po(args[3]) != ours {
           fail("ours changed during merge")
         }
-        replace_ours(args[3], @utf8.encode(output))
+        publish(args[3], @utf8.encode(output), replace=true)
       }
     }
     "plan" | "check" => {
@@ -61,22 +61,30 @@ async fn execute() -> Unit {
         exit_process(1)
       }
     }
-    "apply" | "apply-file" => {
+    "apply" | "apply-file" | "apply-to" => {
       if args.length() < 6 {
         fail("apply requires the reviewed plan JSON file")
       }
       if read_po(args[5]).trim().to_owned() != plan.report().stringify() {
         fail("reviewed report differs from current input. Run plan again.")
       }
-      let choices = if args[1] == "apply-file" {
-        if args.length() != 7 {
-          fail("apply-file requires REVIEW.json and DECISIONS.json")
+      let choices = if args[1] != "apply" {
+        let expected = if args[1] == "apply-to" { 8 } else { 7 }
+        if args.length() != expected {
+          fail(
+            "apply-file requires REVIEW.json DECISIONS.json; apply-to also requires OUTPUT.po",
+          )
         }
         read_decisions(args[6])
       } else {
         args[6:].to_owned()
       }
-      @stdio.stdout.write(plan.apply(choices))
+      let output = plan.apply(choices)
+      if args[1] == "apply-to" {
+        publish(args[7], @utf8.encode(output), replace=false)
+      } else {
+        @stdio.stdout.write(output)
+      }
     }
     _ => fail("unknown command: " + args[1])
   }
