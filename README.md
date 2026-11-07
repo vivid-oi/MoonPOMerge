@@ -67,8 +67,14 @@ It exits 1 and prints the conflict report to stderr for a divergent entry,
 leaving the ours file intact. Read the three unmerged Git index stages and
 use `plan` / `apply` to resolve. Invalid input and I/O failures exit 2.
 
-The portable library exposes `plan_merge`, `MergePlan::report` and
-`MergePlan::apply`. Entry identity uses decoded context and msgid, with active
+The portable library exposes `plan_merge`, `MergePlan::report`,
+`MergePlan::apply_decisions` and the string-based `MergePlan::apply`.
+Typed callers use `Base`, `Ours`, `Theirs` or `Translations(Array[String])`
+in report order. Translation arrays must contain every plural slot. The plan
+remains reusable after rejected decisions. For example, after reviewing a plan
+with one conflict, `plan.apply_decisions([@merge.Theirs])` selects that entry
+from theirs, including deletion when that side is absent.
+Entry identity uses decoded context and msgid, with active
 and obsolete entries separated. Translation, plural shape, flags and comments
 are compared together, so divergent edits to the same entry require review.
 Equality and round trips are semantic. Output normalizes PO formatting.

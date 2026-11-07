@@ -372,32 +372,83 @@ fn location_json(line : Int32) -> Json {
 ///|
 fn custom_translation(
   slot : Slot,
-  text : String,
+  translations : Array[String],
 ) -> @po.PoEntry raise MergeError {
   guard slot.ours is Some(entry) && !entry.is_header() else {
     raise Invalid("custom translation requires a non-header ours entry")
   }
-  let value = @json.parse(text) catch {
-    _ => raise Invalid("custom translation must contain valid JSON")
-  }
-  guard value is Array(items) && items.length() == entry.translations.length() else {
+  if translations.length() != entry.translations.length() {
     raise Invalid("custom translation must supply every translation slot")
   }
-  let translations : Array[String] = []
-  for item in items {
-    guard item is String(value) else {
-      raise Invalid("custom translation slots must be strings")
-    }
-    translations.push(value)
-  }
-  { ..entry, translations, }
+  { ..entry, translations: translations.copy(), }
 }
 
 ///|
-/// Resolve every conflict in report order and return a complete validated PO.
+/// Select an existing side, including its deletion, or replace every translation
+/// of the ours entry while preserving its identity, comments and flags.
+pub(all) enum Decision {
+  Base
+  Ours
+  Theirs
+  Translations(Array[String])
+}
+
+///|
+/// Compatibility entry point for branch names and `json:[...]` CLI choices.
+/// New library callers can use `apply_decisions` with typed decisions.
 pub fn MergePlan::apply(
   self : MergePlan,
   choices : Array[String],
+) -> String raise MergeError {
+  let decisions = []
+  for id, choice in choices {
+    decisions.push(
+      match choice {
+        "base" => Base
+        "ours" => Ours
+        "theirs" => Theirs
+        _ if choice.has_prefix("json:") => {
+          let value = @json.parse(choice[5:].to_owned()) catch {
+            _ => raise Invalid("custom translation must contain valid JSON")
+          }
+          guard value is Array(items) else {
+            raise Invalid(
+              "custom translation must supply every translation slot",
+            )
+          }
+          let translations = []
+          for item in items {
+            guard item is String(value) else {
+              raise Invalid("custom translation slots must be strings")
+            }
+            translations.push(value)
+          }
+          Translations(translations)
+        }
+        _ => raise Invalid("unknown decision for conflict " + id.to_string())
+      },
+    )
+  }
+  self.apply_decisions(decisions)
+}
+
+///|
+/// Resolve all conflicts in report order and return a complete validated PO.
+/// Failed decisions leave the plan reusable. Translation arrays are copied.
+///
+/// ```mbt check
+/// test {
+///   let header = "msgid \"\"\nmsgstr \"Content-Type: text/plain; charset=UTF-8\\n\"\n"
+///   let base = header + "\nmsgid \"Open\"\nmsgstr \"A\"\n"
+///   let ours = header + "\nmsgid \"Open\"\nmsgstr \"B\"\n"
+///   let theirs = header + "\nmsgid \"Open\"\nmsgstr \"C\"\n"
+///   let plan = @moonpomerge.plan_merge(base, ours, theirs)
+///   assert_eq(plan.apply_decisions([@moonpomerge.Theirs]), plan.apply(["theirs"]))
+/// }
+/// ```
+pub fn MergePlan::apply_decisions(
+  self : MergePlan,
+  choices : Array[Decision],
 ) -> String raise MergeError {
   if choices.length() != self.conflicts.length() {
     raise Invalid(
@@ -409,12 +460,10 @@ pub fn MergePlan::apply(
     let slot = self.conflicts[id]
     selected.push(
       match choice {
-        "base" => slot.base
-        "ours" => slot.ours
-        "theirs" => slot.theirs
-        _ if choice.has_prefix("json:") =>
-          Some(custom_translation(slot, choice[5:].to_owned()))
-        _ => raise Invalid("unknown decision for conflict " + id.to_string())
+        Base => slot.base
+        Ours => slot.ours
+        Theirs => slot.theirs
+        Translations(values) => Some(custom_translation(slot, values))
       },
     )
   }

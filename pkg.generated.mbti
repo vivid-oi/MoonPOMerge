@@ -14,10 +14,18 @@ pub suberror MergeError {
 }
 
 // Types and methods
+pub(all) enum Decision {
+  Base
+  Ours
+  Theirs
+  Translations(Array[String])
+}
+
 pub struct MergePlan {
   // private fields
 }
 pub fn MergePlan::apply(Self, Array[String]) -> String raise MergeError
+pub fn MergePlan::apply_decisions(Self, Array[Decision]) -> String raise MergeError
 pub fn MergePlan::has_conflicts(Self) -> Bool
 pub fn MergePlan::report(Self) -> @json.Json
 
