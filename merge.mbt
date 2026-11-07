@@ -19,6 +19,16 @@ pub struct MergePlan {
   priv entries : Array[(@po.PoEntry?, Int32?)]
   priv conflicts : Array[Slot]
   priv fingerprints : Array[String]
+  priv summary : MergeSummary
+}
+
+///|
+priv struct MergeSummary {
+  mut unchanged : Int32
+  mut ours_only : Int32
+  mut theirs_only : Int32
+  mut converged : Int32
+  mut removed : Int32
 }
 
 ///|
@@ -187,6 +197,13 @@ pub fn plan_merge(
   let entries : Array[(@po.PoEntry?, Int32?)] = []
   let conflicts : Array[Slot] = []
   let seen : Map[(String?, String, Bool), Bool] = Map([])
+  let summary : MergeSummary = {
+    unchanged: 0,
+    ours_only: 0,
+    theirs_only: 0,
+    converged: 0,
+    removed: 0,
+  }
   for index in [bi, oi, ti] {
     for key, _ in index {
       if seen.contains(key) {
@@ -196,9 +213,27 @@ pub fn plan_merge(
       let bv = bi.get(key).map(pair => pair.0)
       let ov = oi.get(key).map(pair => pair.0)
       let tv = ti.get(key).map(pair => pair.0)
-      if ov == tv || tv == bv {
+      if ov == tv {
+        if ov == bv {
+          summary.unchanged += 1
+        } else {
+          summary.converged += 1
+        }
+        if ov is None {
+          summary.removed += 1
+        }
+        entries.push((ov, None))
+      } else if tv == bv {
+        summary.ours_only += 1
+        if ov is None {
+          summary.removed += 1
+        }
         entries.push((ov, None))
       } else if ov == bv {
+        summary.theirs_only += 1
+        if tv is None {
+          summary.removed += 1
+        }
         entries.push((tv, None))
       } else {
         let id = conflicts.length()
@@ -219,7 +254,12 @@ pub fn plan_merge(
       }
     }
   }
-  { entries, conflicts, fingerprints: [base, ours, theirs].map(fingerprint), }
+  {
+    entries,
+    conflicts,
+    fingerprints: [base, ours, theirs].map(fingerprint),
+    summary,
+  }
 }
 
 ///|
@@ -247,6 +287,14 @@ fn entry_json(entry : @po.PoEntry?) -> Json {
 pub fn MergePlan::report(self : MergePlan) -> Json {
   {
     "version": 2,
+    "summary": {
+      "unchanged": Json(self.summary.unchanged),
+      "ours_only": Json(self.summary.ours_only),
+      "theirs_only": Json(self.summary.theirs_only),
+      "converged": Json(self.summary.converged),
+      "removed": Json(self.summary.removed),
+      "conflicts": Json(self.conflicts.length()),
+    },
     "input_sha256": {
       "base": Json(self.fingerprints[0]),
       "ours": Json(self.fingerprints[1]),

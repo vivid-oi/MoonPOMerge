@@ -16,6 +16,19 @@ test "disjoint changes merge and round trip deterministically" {
   let base = catalog("Ouvrir", "Fermer")
   let ours = catalog("Ouverture", "Fermer")
   let theirs = catalog("Ouvrir", "Fermeture")
+  let plan = @moonpomerge.plan_merge(base, ours, theirs)
+  guard plan.report() is { "summary": summary, .. } else {
+    fail("missing merge summary")
+  }
+  let expected : Json = {
+    "unchanged": 1,
+    "ours_only": 1,
+    "theirs_only": 1,
+    "converged": 0,
+    "removed": 0,
+    "conflicts": 0,
+  }
+  assert_eq(summary, expected)
   let result = @moonpomerge.plan_merge(base, ours, theirs).apply([])
   assert_true(result.contains("Ouverture"))
   assert_true(result.contains("Fermeture"))

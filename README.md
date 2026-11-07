@@ -32,6 +32,10 @@ Version 2 binds decisions to SHA-256 hashes of all three decoded input texts,
 including changes outside conflicts. Regenerate earlier review files.
 The report gives one-based block-start lines for each side. An absent entry
 has a null line. Lines refer to the actual input text, including comments.
+The summary counts unchanged entries, single-branch edits, identical edits
+from both branches, and conflicts. The header counts as an entry. Automatic
+removals are a subset of automatic changes. Regenerate saved reviews to include
+the summary before applying them.
 
 For CI, run `check BASE OURS THEIRS`. It prints the review JSON and exits 0 for
 a validated clean merge, 1 for conflicts, or 2 for invalid input or I/O errors.
